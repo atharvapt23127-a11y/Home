@@ -1,0 +1,57 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, classification_report
+
+# -------------------------
+# 1) Load Dataset
+# -------------------------
+df = pd.read_csv("/mnt/data/Graduate_Admissions.csv")   # change if filename differs
+
+# -------------------------
+# 2) Preprocessing (Label Encoding if needed)
+# -------------------------
+for col in df.select_dtypes(include='object').columns:
+    df[col] = LabelEncoder().fit_transform(df[col])
+
+# Identify Target Column (Admit / Chance of Admit)
+target_col = None
+for col in df.columns:
+    if col.lower() in ["admit", "chance of admit", "chance", "admitted"]:
+        target_col = col
+        break
+
+# If probability-type target found → convert to binary
+if target_col is None:
+    target_col = df.columns[-1]  # fallback
+
+y = df[target_col]
+
+# If probability → convert to (0/1)
+if y.max() <= 1:
+    y = (y > 0.5).astype(int)
+
+X = df.drop(columns=[target_col])
+
+# -------------------------
+# 3) Train-Test Split
+# -------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# -------------------------
+# 4) Decision Tree Model
+# -------------------------
+model = DecisionTreeClassifier()
+model.fit(X_train, y_train)
+
+# -------------------------
+# 5) Prediction & Evaluation
+# -------------------------
+y_pred = model.predict(X_test)
+
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+

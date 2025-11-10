@@ -1,0 +1,98 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.metrics import accuracy_score
+import matplotlib.pyplot as plt
+
+# Keras
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+
+# -----------------------------------------
+# a) Load Dataset
+# -----------------------------------------
+df = pd.read_csv("/mnt/data/ANN_Bank_Marketing.csv")   # change filename if needed
+
+# Encode categorical columns
+for col in df.select_dtypes(include=['object']).columns:
+    df[col] = LabelEncoder().fit_transform(df[col])
+
+# Target column (commonly 'y')
+target_col = None
+for col in df.columns:
+    if col.lower() in ['y', 'target', 'subscribed']:
+        target_col = col
+        break
+if target_col is None:
+    target_col = df.columns[-1]
+
+X = df.drop(columns=[target_col])
+y = df[target_col]
+
+# Scale
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+
+# Train–test
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# -----------------------------------------
+# b) Build ANN Model (Two Hidden Layers)
+# -----------------------------------------
+def build_model(activation_hidden='relu', activation_output='sigmoid'):
+    model = Sequential()
+    model.add(Dense(32, activation=activation_hidden, input_shape=(X_train.shape[1],)))
+    model.add(Dense(16, activation=activation_hidden))
+    model.add(Dense(1, activation=activation_output))
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    return model
+
+# -----------------------------------------
+# c) Train model (initial)
+# -----------------------------------------
+model = build_model()
+history = model.fit(X_train, y_train, epochs=30, batch_size=32,
+                    validation_split=0.1, verbose=0)
+
+# -----------------------------------------
+# d) Evaluate performance per epoch + batch size
+# -----------------------------------------
+loss, acc = model.evaluate(X_test, y_test, verbose=0)
+print("Test Accuracy (30 epochs, batch=32):", acc)
+
+# -----------------------------------------
+# e) Different activation functions
+# -----------------------------------------
+model_relu = build_model(activation_hidden='relu')
+model_relu.fit(X_train, y_train, epochs=20, batch_size=32,
+               validation_split=0.1, verbose=0)
+_, acc_relu = model_relu.evaluate(X_test, y_test, verbose=0)
+
+model_tanh = build_model(activation_hidden='tanh')
+model_tanh.fit(X_train, y_train, epochs=20, batch_size=32,
+               validation_split=0.1, verbose=0)
+_, acc_tanh = model_tanh.evaluate(X_test, y_test, verbose=0)
+
+print("Accuracy (ReLU):", acc_relu)
+print("Accuracy (Tanh):", acc_tanh)
+
+# -----------------------------------------
+# Loss Visualisation
+# -----------------------------------------
+plt.plot(history.history['loss'], label='loss')
+plt.plot(history.history['val_loss'], label='val_loss')
+plt.title("ANN Training Loss")
+plt.legend()
+plt.show()
+
+# -----------------------------------------
+# f) ANN Visualizer (optional if available)
+# -----------------------------------------
+try:
+    from ann_visualizer.visualize import ann_viz
+    ann_viz(model, filename="/mnt/data/ANN_Bank_Model_Visualization")
+    print("ANN visualization saved.")
+except:
+    print("ANN Visualizer not available.")

@@ -1,0 +1,34 @@
+import pandas as pd
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, association_rules
+
+# ------------------------------------------------
+# 1) Load dataset
+# ------------------------------------------------
+df = pd.read_csv("/mnt/data/Market_Basket_Optimisation.csv", header=None)
+
+# Convert transactions to list of lists
+transactions = df.values.tolist()
+
+# ------------------------------------------------
+# 2) Transaction Encoding
+# ------------------------------------------------
+te = TransactionEncoder()
+data = te.fit(transactions).transform(transactions)
+df_enc = pd.DataFrame(data, columns=te.columns_)
+
+# ------------------------------------------------
+# 3) Apriori
+# ------------------------------------------------
+frequent_items = apriori(df_enc, min_support=0.02, use_colnames=True)
+
+# ------------------------------------------------
+# 4) Association Rules
+# ------------------------------------------------
+rules = association_rules(frequent_items, metric="lift", min_threshold=1)
+
+print("\nFrequent Itemsets:")
+print(frequent_items)
+
+print("\nAssociation Rules:")
+print(rules)

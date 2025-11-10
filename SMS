@@ -1,0 +1,86 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report
+import re
+
+# ----------------------------------------
+# 1) Load Dataset
+# ----------------------------------------
+df = pd.read_csv("/mnt/data/spam.csv", encoding="latin1", on_bad_lines='skip')
+
+# Keep only required columns (first 2)
+df = df.iloc[:, :2]
+df.columns = ["label", "message"]
+
+# ----------------------------------------
+# 2) Preprocessing
+# ----------------------------------------
+
+# Basic text cleaning
+def clean_text(t):
+    t = t.lower()
+    t = re.sub(r"[^a-z0-9 ]", " ", t)
+    return t
+
+df["message"] = df["message"].astype(str).apply(clean_text)
+
+# Label encoding (ham=0, spam=1)
+df["label"] = df["label"].map({"ham":0, "spam":1})
+
+# Tokenization + Vectorization
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(df["message"])
+y = df["label"]
+
+# ----------------------------------------
+# 3) Train-Test Split
+# ----------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ----------------------------------------
+# 4) Models
+# ----------------------------------------
+nb = MultinomialNB()
+lr = LogisticRegression(max_iter=1000)
+
+nb.fit(X_train, y_train)
+lr.fit(X_train, y_train)
+
+# Predictions
+y_pred_nb = nb.predict(X_test)
+y_pred_lr = lr.predict(X_test)
+
+# ----------------------------------------
+# 5) Evaluation
+# ----------------------------------------
+print("\n=== Naive Bayes Metrics ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_nb))
+print(classification_report(y_test, y_pred_nb))
+
+print("\n=== Logistic Regression Metrics ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_lr))
+print(classification_report(y_test, y_pred_lr))
+
+# ----------------------------------------
+# 6) Cross-Validation + Hyperparameter Tuning
+# ----------------------------------------
+
+# Naive Bayes tuning
+param_nb = {"alpha":[0.1,0.5,1.0]}
+gs_nb = GridSearchCV(MultinomialNB(), param_nb, cv=5, scoring='f1')
+gs_nb.fit(X, y)
+
+# Logistic Regression tuning
+param_lr = {"C":[0.1,1,10]}
+gs_lr = GridSearchCV(LogisticRegression(max_iter=1000), param_lr, cv=5, scoring='f1')
+gs_lr.fit(X, y)
+
+print("\n=== Cross Validation Results ===")
+print("Best NB Params:", gs_nb.best_params_, "Best CV Score:", gs_nb.best_score_)
+print("Best LR Params:", gs_lr.best_params_, "Best CV Score:", gs_lr.best_score_)

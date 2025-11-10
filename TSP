@@ -1,0 +1,196 @@
+// tsp_bnb.cpp
+// Traveling Salesman Problem using Least-Cost Branch & Bound (reduced cost matrix)
+// Compile: g++ -std=c++17 tsp_bnb.cpp -O2
+
+#include <bits/stdc++.h>
+using namespace std;
+const int INF = 1e9;
+
+struct Node {
+    vector<vector<int>> reduced; // reduced cost matrix
+    long long bound;             // lower bound (cost so far + reductions)
+    int level;                   // how many cities are in path (root level = 0)
+    int vertex;                  // current city
+    vector<int> path;            // path taken (sequence of cities)
+    // constructor
+    Node(int n = 0) : reduced(n, vector<int>(n, INF)), bound(0), level(0), vertex(0) {}
+};
+
+// comparator for priority_queue: smallest bound has highest priority
+struct Cmp {
+    bool operator()(const Node &a, const Node &b) const {
+        return a.bound > b.bound;
+    }
+};
+
+// reduce rows: subtract minimum of each row from row and add to cost
+long long reduceRows(vector<vector<int>> &mat) {
+    int n = mat.size();
+    long long cost = 0;
+    for (int i = 0; i < n; ++i) {
+        int mn = INF;
+        for (int j = 0; j < n; ++j)
+            mn = min(mn, mat[i][j]);
+        if (mn != INF && mn > 0) {
+            cost += mn;
+            for (int j = 0; j < n; ++j)
+                if (mat[i][j] != INF) mat[i][j] -= mn;
+        }
+    }
+    return cost;
+}
+
+// reduce cols: subtract minimum of each column from column and add to cost
+long long reduceCols(vector<vector<int>> &mat) {
+    int n = mat.size();
+    long long cost = 0;
+    for (int j = 0; j < n; ++j) {
+        int mn = INF;
+        for (int i = 0; i < n; ++i)
+            mn = min(mn, mat[i][j]);
+        if (mn != INF && mn > 0) {
+            cost += mn;
+            for (int i = 0; i < n; ++i)
+                if (mat[i][j] != INF) mat[i][j] -= mn;
+        }
+    }
+    return cost;
+}
+
+// full reduction: reduce rows then cols, return total reduction cost
+long long reduceMatrix(vector<vector<int>> &mat) {
+    return reduceRows(mat) + reduceCols(mat);
+}
+
+// create child node representing move: from 'from' -> 'to'
+Node createChild(const Node &parent, int from, int to, const vector<vector<int>> &costMat) {
+    int n = costMat.size();
+    Node child = parent; // copy parent
+    child.reduced = parent.reduced; // copy matrix
+    child.level = parent.level + 1;
+    child.vertex = to;
+    child.path.push_back(to);
+
+    // Set row of 'from' to INF (can't go out of 'from' again)
+    for (int j = 0; j < n; ++j) child.reduced[from][j] = INF;
+    // Set column of 'to' to INF (can't go into 'to' again)
+    for (int i = 0; i < n; ++i) child.reduced[i][to] = INF;
+    // Block returning to start prematurely: prevent going to start until final step
+    child.reduced[to][0] = INF;
+
+    // Add direct cost from parent.vertex (which should equal 'from') to 'to'
+    long long pathCost = (parent.reduced.size() == 0) ? costMat[from][to] : parent.reduced[from][to]; 
+    // Note: parent.reduced[from][to] might have been reduced; actual increment to bound:
+    // We compute bound as parent's bound + original cost from costMat[from][to] + reduction of child matrix
+    child.bound = parent.bound + costMat[from][to];
+
+    // Reduce the child's matrix and add reduction cost to bound
+    child.bound += reduceMatrix(child.reduced);
+
+    return child;
+}
+
+// Solve TSP using LC Branch & Bound and return pair(bestCost, bestPath)
+pair<long long, vector<int>> solveTSP(const vector<vector<int>> &costMat) {
+    int n = costMat.size();
+    // initial node (root)
+    Node root(n);
+    // initial reduced matrix = original cost matrix (make copy)
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+            root.reduced[i][j] = costMat[i][j];
+    // initial bound is reduction of root matrix
+    root.bound = reduceMatrix(root.reduced);
+    root.level = 0;
+    root.vertex = 0;
+    root.path.push_back(0);
+
+    long long bestCost = LLONG_MAX;
+    vector<int> bestPath;
+
+    priority_queue<Node, vector<Node>, Cmp> pq;
+    pq.push(root);
+
+    while (!pq.empty()) {
+        Node cur = pq.top(); pq.pop();
+
+        // if bound already worse than best known, prune
+        if (cur.bound >= bestCost) continue;
+
+        // if we have a complete path (visited n cities)
+        if (cur.level == n - 1) {
+            // add cost to return to start (0)
+            int last = cur.vertex;
+            if (costMat[last][0] != INF) {
+                long long totalCost = cur.bound + costMat[last][0]; // cur.bound already has all reductions+path
+                if (totalCost < bestCost) {
+                    bestCost = totalCost;
+                    bestPath = cur.path;
+                    bestPath.push_back(0); // return to start
+                }
+            }
+            continue;
+        }
+
+        // expand current node: try all possible next cities
+        for (int nxt = 0; nxt < n; ++nxt) {
+            if (cur.reduced[cur.vertex][nxt] != INF) {
+                Node child = cur;
+                // We must create child properly with cost additions and new reductions
+                // But using createChild we need the original 'from' index (cur.vertex) and costMat
+                child = createChild(cur, cur.vertex, nxt, costMat);
+                // If new bound promising, push
+                if (child.bound < bestCost) pq.push(child);
+            }
+        }
+    }
+
+    return {bestCost == LLONG_MAX ? -1 : bestCost, bestPath};
+}
+
+// Example usage
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    // Input format:
+    // n
+    // n x n cost matrix (use a large number like 99999 if no edge; for complete graph put valid weights)
+    //
+    // Example (4 cities):
+    // 4
+    // 99999 20 30 10
+    // 20 99999 15 35
+    // 30 15 99999 25
+    // 10 35 25 99999
+
+    int n;
+    cout << "Enter number of cities (n): ";
+    if (!(cin >> n)) return 0;
+    vector<vector<int>> costMat(n, vector<int>(n));
+    cout << "Enter adjacency cost matrix (use large number like 99999 for INF / no-edge):\n";
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j) {
+            cin >> costMat[i][j];
+            if (costMat[i][j] >= 99999) costMat[i][j] = INF;
+            if (i == j) costMat[i][j] = INF; // no self-loop
+        }
+
+    auto res = solveTSP(costMat);
+    long long bestCost = res.first;
+    auto bestPath = res.second;
+
+    if (bestCost == -1) {
+        cout << "No Hamiltonian cycle found.\n";
+    } else {
+        cout << "\nMinimum tour cost = " << bestCost << "\n";
+        cout << "Path: ";
+        for (size_t i = 0; i < bestPath.size(); ++i) {
+            cout << bestPath[i];
+            if (i + 1 < bestPath.size()) cout << " -> ";
+        }
+        cout << "\n";
+    }
+
+    return 0;
+}

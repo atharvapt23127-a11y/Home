@@ -1,0 +1,55 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.naive_bayes import GaussianNB
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# ------------------------------------------------
+# a) Load Dataset + Label Encoding
+# ------------------------------------------------
+df = pd.read_csv("/mnt/data/mushroom.csv")   # Change file name if needed
+
+# Encode all categorical features
+for col in df.columns:
+    df[col] = LabelEncoder().fit_transform(df[col].astype(str))
+
+# Target column (commonly "class")
+target_col = "class" if "class" in df.columns else df.columns[0]
+X = df.drop(columns=[target_col])
+y = df[target_col]
+
+# ------------------------------------------------
+# b) Train-Test Split
+# ------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# ------------------------------------------------
+# c) Models → Naive Bayes + Decision Tree
+# ------------------------------------------------
+nb = GaussianNB()
+dt = DecisionTreeClassifier()
+
+nb.fit(X_train, y_train)
+dt.fit(X_train, y_train)
+
+y_pred_nb = nb.predict(X_test)
+y_pred_dt = dt.predict(X_test)
+
+# ------------------------------------------------
+# d) Evaluation
+# ------------------------------------------------
+print("=== Naive Bayes Results ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_nb))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred_nb))
+
+print("\n=== Decision Tree Results ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_dt))
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred_dt))
+
+# ------------------------------------------------
+# e) Cross-Validation
+# ------------------------------------------------
+cv_scores = cross_val_score(Decis_
